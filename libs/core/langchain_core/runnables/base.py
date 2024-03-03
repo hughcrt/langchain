@@ -1493,9 +1493,23 @@ class Runnable(Generic[Input, Output], ABC):
 
         config = ensure_config(config)
         callback_manager = get_callback_manager_for_config(config)
+
+        for ichunk in input_for_tracing:
+            if final_input_supported:
+                if final_input is None:
+                    final_input = ichunk
+                else:
+                    try:
+                        final_input = final_input + ichunk  # type: ignore
+                    except TypeError:
+                        final_input = ichunk
+                        final_input_supported = False
+            else:
+                final_input = ichunk
+            
         run_manager = callback_manager.on_chain_start(
             dumpd(self),
-            {"input": ""},
+            {"input": final_input},
             run_type=run_type,
             name=config.get("run_name") or self.get_name(),
         )
@@ -1525,18 +1539,6 @@ class Runnable(Generic[Input, Output], ABC):
                         final_output = chunk
             except StopIteration:
                 pass
-            for ichunk in input_for_tracing:
-                if final_input_supported:
-                    if final_input is None:
-                        final_input = ichunk
-                    else:
-                        try:
-                            final_input = final_input + ichunk  # type: ignore
-                        except TypeError:
-                            final_input = ichunk
-                            final_input_supported = False
-                else:
-                    final_input = ichunk
         except BaseException as e:
             run_manager.on_chain_error(e, inputs=final_input)
             raise
